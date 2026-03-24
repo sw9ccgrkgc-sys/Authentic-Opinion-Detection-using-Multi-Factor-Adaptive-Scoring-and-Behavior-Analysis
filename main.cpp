@@ -1,20 +1,26 @@
 #include <iostream>
 #include <string>
 #include <map>
+#include <cmath>
 
 using namespace std;
 
+// stores each feedback
 struct Feedback {
     int userId;
     int productId;
     string text;
     int score;
-    string signal;   // signal strength
+    string signal;
 };
 
-// basic text cleaning (string processing)
+// stores trust score of users (memory)
+map<int,int> userTrust;
+
+// convert text to lowercase and remove unwanted characters
 string cleanText(string s) {
     string res = "";
+
     for (int i = 0; i < s.length(); i++) {
         char ch = s[i];
 
@@ -24,10 +30,11 @@ string cleanText(string s) {
         if ((ch >= 'a' && ch <= 'z') || ch == ' ')
             res += ch;
     }
+
     return res;
 }
 
-// Linear Search → duplicate detection
+// checks if feedback is already present
 bool isDuplicate(Feedback arr[], int n, string txt) {
     for (int i = 0; i < n; i++) {
         if (arr[i].text == txt)
@@ -36,25 +43,25 @@ bool isDuplicate(Feedback arr[], int n, string txt) {
     return false;
 }
 
-// Hashing → word frequency
+// creates frequency map of words
 map<string,int> getFreq(string txt) {
     map<string,int> m;
-    string w = "";
+    string word = "";
 
     for (int i = 0; i < txt.length(); i++) {
         if (txt[i] != ' ') {
-            w += txt[i];
+            word += txt[i];
         } else {
-            if (w != "") m[w]++;
-            w = "";
+            if (word != "") m[word]++;
+            word = "";
         }
     }
-    if (w != "") m[w]++;
 
+    if (word != "") m[word]++;
     return m;
 }
 
-// similarity (set based comparison using hashing)
+// calculates similarity percentage between two feedbacks
 int similarityPercent(string a, string b) {
     map<string,int> m1 = getFreq(a);
     map<string,int> m2 = getFreq(b);
@@ -72,20 +79,20 @@ int similarityPercent(string a, string b) {
     return (common * 100) / total;
 }
 
-// repetition penalty (hashing)
+// checks repeated words
 int repetitionPenalty(string txt) {
     map<string,int> m = getFreq(txt);
-    int pen = 0;
+    int penalty = 0;
 
     for (auto it : m) {
         if (it.second > 2)
-            pen += (it.second - 2) * 2;
+            penalty += (it.second - 2) * 2;
     }
 
-    return pen;
+    return penalty;
 }
 
-// Linear Search → user behaviour
+// checks how user behaves
 int userPenalty(Feedback arr[], int n, int uid, int pid) {
     int sameUser = 0, sameProduct = 0;
 
@@ -97,15 +104,17 @@ int userPenalty(Feedback arr[], int n, int uid, int pid) {
             sameProduct++;
     }
 
-    int pen = 0;
-    if (sameUser > 3) pen += 10;
-    if (sameProduct > 1) pen += 10;
+    int penalty = 0;
 
-    return pen;
+    if (sameUser > 3) penalty += 10;
+    if (sameProduct > 1) penalty += 10;
+
+    return penalty;
 }
 
-// Greedy scoring + signal strength
+// main scoring logic
 int calculateScore(Feedback arr[], int n, Feedback &f) {
+
     int score = 100;
     int signals = 0;
 
@@ -136,22 +145,24 @@ int calculateScore(Feedback arr[], int n, Feedback &f) {
         signals++;
     }
 
+    // user trust memory
+    if (userTrust[f.userId] < 30) {
+        score -= 10;
+        signals++;
+    }
+
     if (score < 0) score = 0;
 
-    // signal strength classification
-    if (signals >= 3)
-        f.signal = "High";
-    else if (signals == 2)
-        f.signal = "Medium";
-    else if (signals == 1)
-        f.signal = "Low";
-    else
-        f.signal = "None";
+    // signal strength
+    if (signals >= 3) f.signal = "High";
+    else if (signals == 2) f.signal = "Medium";
+    else if (signals == 1) f.signal = "Low";
+    else f.signal = "None";
 
     return score;
 }
 
-// Bubble Sort → sorting
+// sorts feedback by score
 void sortData(Feedback arr[], int n) {
     for (int i = 0; i < n - 1; i++) {
         for (int j = 0; j < n - i - 1; j++) {
@@ -164,14 +175,16 @@ void sortData(Feedback arr[], int n) {
     }
 }
 
-// display
+// display feedback results
 void show(Feedback arr[], int n) {
+
     for (int i = 0; i < n; i++) {
+
         cout << "\nUser: " << arr[i].userId;
         cout << "\nProduct: " << arr[i].productId;
         cout << "\nFeedback: " << arr[i].text;
         cout << "\nScore: " << arr[i].score;
-        cout << "\nSignal Strength: " << arr[i].signal;
+        cout << "\nSignal: " << arr[i].signal;
 
         if (arr[i].score >= 75)
             cout << " (Genuine)";
@@ -184,9 +197,11 @@ void show(Feedback arr[], int n) {
     }
 }
 
-// Aggregation → product level stats
+// shows product level stats
 void productStats(Feedback arr[], int n) {
+
     for (int i = 0; i < n; i++) {
+
         int pid = arr[i].productId;
 
         int total = 0, genuine = 0, fake = 0, sum = 0;
@@ -202,6 +217,7 @@ void productStats(Feedback arr[], int n) {
         }
 
         if (total > 0) {
+
             cout << "\nProduct " << pid;
             cout << "\nTotal Feedback: " << total;
             cout << "\nGenuine: " << genuine;
@@ -217,7 +233,35 @@ void productStats(Feedback arr[], int n) {
     }
 }
 
+// finds unusual feedback (pattern detection)
+void detectOutliers(Feedback arr[], int n) {
+
+    for (int i = 0; i < n; i++) {
+
+        int pid = arr[i].productId;
+        int sum = 0, count = 0;
+
+        for (int j = 0; j < n; j++) {
+            if (arr[j].productId == pid) {
+                sum += arr[j].score;
+                count++;
+            }
+        }
+
+        if (count > 0) {
+            int avg = sum / count;
+
+            if (abs(arr[i].score - avg) > 30) {
+                cout << "\nOutlier detected -> User "
+                     << arr[i].userId << " on Product "
+                     << pid;
+            }
+        }
+    }
+}
+
 int main() {
+
     Feedback arr[100];
     int n, count = 0;
 
@@ -226,6 +270,7 @@ int main() {
     cin.ignore();
 
     for (int i = 0; i < n; i++) {
+
         Feedback f;
 
         cout << "\nUser ID: ";
@@ -242,16 +287,28 @@ int main() {
 
         f.score = calculateScore(arr, count, f);
 
+        // update trust
+        if (f.score >= 75)
+            userTrust[f.userId] += 2;
+        else if (f.score < 40)
+            userTrust[f.userId] -= 5;
+
+        if (userTrust[f.userId] > 100) userTrust[f.userId] = 100;
+        if (userTrust[f.userId] < 0) userTrust[f.userId] = 0;
+
         arr[count++] = f;
     }
 
     sortData(arr, count);
 
-    cout << "\nResults after analysis:\n";
+    cout << "\nResults:\n";
     show(arr, count);
 
-    cout << "\nProduct summary:\n";
+    cout << "\nProduct Summary:\n";
     productStats(arr, count);
+
+    cout << "\nPattern Detection:\n";
+    detectOutliers(arr, count);
 
     return 0;
 }
