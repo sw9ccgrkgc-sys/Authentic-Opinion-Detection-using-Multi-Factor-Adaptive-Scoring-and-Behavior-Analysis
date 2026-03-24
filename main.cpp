@@ -1,11 +1,10 @@
 #include <iostream>
 #include <string>
 #include <map>
-#include <cmath>
 
 using namespace std;
 
-// stores each feedback
+// stores feedback data
 struct Feedback {
     int userId;
     int productId;
@@ -14,10 +13,7 @@ struct Feedback {
     string signal;
 };
 
-// stores trust score of users (memory)
-map<int,int> userTrust;
-
-// convert text to lowercase and remove unwanted characters
+// clean text (lowercase + remove unwanted chars)
 string cleanText(string s) {
     string res = "";
 
@@ -34,7 +30,7 @@ string cleanText(string s) {
     return res;
 }
 
-// checks if feedback is already present
+// check duplicate feedback
 bool isDuplicate(Feedback arr[], int n, string txt) {
     for (int i = 0; i < n; i++) {
         if (arr[i].text == txt)
@@ -43,7 +39,7 @@ bool isDuplicate(Feedback arr[], int n, string txt) {
     return false;
 }
 
-// creates frequency map of words
+// create word frequency map
 map<string,int> getFreq(string txt) {
     map<string,int> m;
     string word = "";
@@ -61,7 +57,7 @@ map<string,int> getFreq(string txt) {
     return m;
 }
 
-// calculates similarity percentage between two feedbacks
+// calculate similarity between two feedbacks
 int similarityPercent(string a, string b) {
     map<string,int> m1 = getFreq(a);
     map<string,int> m2 = getFreq(b);
@@ -79,7 +75,7 @@ int similarityPercent(string a, string b) {
     return (common * 100) / total;
 }
 
-// checks repeated words
+// check repeated words
 int repetitionPenalty(string txt) {
     map<string,int> m = getFreq(txt);
     int penalty = 0;
@@ -92,7 +88,7 @@ int repetitionPenalty(string txt) {
     return penalty;
 }
 
-// checks how user behaves
+// check user behaviour
 int userPenalty(Feedback arr[], int n, int uid, int pid) {
     int sameUser = 0, sameProduct = 0;
 
@@ -112,17 +108,19 @@ int userPenalty(Feedback arr[], int n, int uid, int pid) {
     return penalty;
 }
 
-// main scoring logic
+// scoring logic
 int calculateScore(Feedback arr[], int n, Feedback &f) {
 
     int score = 100;
     int signals = 0;
 
+    // duplicate check
     if (isDuplicate(arr, n, f.text)) {
         score -= 40;
         signals++;
     }
 
+    // similarity check
     for (int i = 0; i < n; i++) {
         int sim = similarityPercent(f.text, arr[i].text);
 
@@ -133,21 +131,17 @@ int calculateScore(Feedback arr[], int n, Feedback &f) {
         }
     }
 
+    // repetition check
     int rep = repetitionPenalty(f.text);
     if (rep > 0) {
         score -= rep;
         signals++;
     }
 
+    // user behaviour
     int up = userPenalty(arr, n, f.userId, f.productId);
     if (up > 0) {
         score -= up;
-        signals++;
-    }
-
-    // user trust memory
-    if (userTrust[f.userId] < 30) {
-        score -= 10;
         signals++;
     }
 
@@ -162,7 +156,7 @@ int calculateScore(Feedback arr[], int n, Feedback &f) {
     return score;
 }
 
-// sorts feedback by score
+// sort feedback by score
 void sortData(Feedback arr[], int n) {
     for (int i = 0; i < n - 1; i++) {
         for (int j = 0; j < n - i - 1; j++) {
@@ -175,7 +169,7 @@ void sortData(Feedback arr[], int n) {
     }
 }
 
-// display feedback results
+// display results
 void show(Feedback arr[], int n) {
 
     for (int i = 0; i < n; i++) {
@@ -197,7 +191,7 @@ void show(Feedback arr[], int n) {
     }
 }
 
-// shows product level stats
+// product level summary
 void productStats(Feedback arr[], int n) {
 
     for (int i = 0; i < n; i++) {
@@ -233,33 +227,6 @@ void productStats(Feedback arr[], int n) {
     }
 }
 
-// finds unusual feedback (pattern detection)
-void detectOutliers(Feedback arr[], int n) {
-
-    for (int i = 0; i < n; i++) {
-
-        int pid = arr[i].productId;
-        int sum = 0, count = 0;
-
-        for (int j = 0; j < n; j++) {
-            if (arr[j].productId == pid) {
-                sum += arr[j].score;
-                count++;
-            }
-        }
-
-        if (count > 0) {
-            int avg = sum / count;
-
-            if (abs(arr[i].score - avg) > 30) {
-                cout << "\nOutlier detected -> User "
-                     << arr[i].userId << " on Product "
-                     << pid;
-            }
-        }
-    }
-}
-
 int main() {
 
     Feedback arr[100];
@@ -287,15 +254,6 @@ int main() {
 
         f.score = calculateScore(arr, count, f);
 
-        // update trust
-        if (f.score >= 75)
-            userTrust[f.userId] += 2;
-        else if (f.score < 40)
-            userTrust[f.userId] -= 5;
-
-        if (userTrust[f.userId] > 100) userTrust[f.userId] = 100;
-        if (userTrust[f.userId] < 0) userTrust[f.userId] = 0;
-
         arr[count++] = f;
     }
 
@@ -306,9 +264,6 @@ int main() {
 
     cout << "\nProduct Summary:\n";
     productStats(arr, count);
-
-    cout << "\nPattern Detection:\n";
-    detectOutliers(arr, count);
 
     return 0;
 }
